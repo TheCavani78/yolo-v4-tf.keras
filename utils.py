@@ -124,21 +124,19 @@ class DataGenerator(Sequence):
     ref: https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     """
     def __init__(self,
-                 annotation_lines,
-                 class_name_path,
-                 folder_path,
+                 generator,
+                 class_names,
                  max_boxes=100,
                  shuffle=True):
-        self.annotation_lines = annotation_lines
-        self.class_name_path = class_name_path
-        self.num_classes = len([line.strip() for line in open(class_name_path).readlines()])
+        self.annotation_lines = generator
+        self.class_name_path = class_names
+        self.num_classes = len(class_names)
         self.num_gpu = yolo_config['num_gpu']
         self.batch_size = yolo_config['batch_size'] * self.num_gpu
         self.target_img_size = yolo_config['img_size']
         self.anchors = np.array(yolo_config['anchors']).reshape((9, 2))
         self.shuffle = shuffle
         self.indexes = np.arange(len(self.annotation_lines))
-        self.folder_path = folder_path
         self.max_boxes = max_boxes
         self.on_epoch_end()
 
@@ -156,7 +154,7 @@ class DataGenerator(Sequence):
         lines = [self.annotation_lines[i] for i in idxs]
 
         # Generate data
-        X, y_tensor, y_bbox = self.__data_generation(lines)
+        X, y_tensor, y_bbox = self.__data_generation()
 
         return [X, *y_tensor, y_bbox], np.zeros(len(lines))
 
@@ -165,18 +163,18 @@ class DataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
-    def __data_generation(self, annotation_lines):
+    def __data_generation(self):
         """
         Generates data containing batch_size samples
         :param annotation_lines:
         :return:
         """
 
-        X = np.empty((len(annotation_lines), *self.target_img_size), dtype=np.float32)
-        y_bbox = np.empty((len(annotation_lines), self.max_boxes, 5), dtype=np.float32)  # x1y1x2y2
+        X = np.empty((self.batch_size, *self.target_img_size), dtype=np.float32)
+        y_bbox = np.empty((self.batch_size, self.max_boxes, 5), dtype=np.float32)  # x1y1x2y2
 
-        for i, line in enumerate(annotation_lines):
-            img_data, box_data = self.get_data(line)
+        for i in range(self.batch_size):
+            img_data, box_data = self.get_data()
             X[i] = img_data
             y_bbox[i] = box_data
 
@@ -184,10 +182,8 @@ class DataGenerator(Sequence):
 
         return X, y_tensor, y_true_boxes_xywh
 
-    def get_data(self, annotation_line):
-        line = annotation_line.split()
-        img_path = line[0]
-        img = cv2.imread(os.path.join(self.folder_path, img_path))[:, :, ::-1]
+    def get_data(self):
+        img, boxes = next(self.generator)
         ih, iw = img.shape[:2]
         h, w, c = self.target_img_size
         boxes = np.array([np.array(list(map(float, box.split(',')))) for box in line[1:]], dtype=np.float32) # x1y1x2y2
