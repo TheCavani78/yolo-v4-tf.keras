@@ -156,7 +156,7 @@ class DataGenerator(Sequence):
         # Generate data
         X, y_tensor, y_bbox = self.__data_generation()
 
-        return [X, *y_tensor, y_bbox], np.zeros(len(lines))
+        return [X, *y_tensor, y_bbox], np.zeros(self.batch_size)
 
     def on_epoch_end(self):
         'Updates indexes after each epoch'
@@ -186,7 +186,7 @@ class DataGenerator(Sequence):
         img, boxes = next(self.generator)
         ih, iw = img.shape[:2]
         h, w, c = self.target_img_size
-        boxes = np.array([np.array(list(map(float, box.split(',')))) for box in line[1:]], dtype=np.float32) # x1y1x2y2
+        boxes = np.array(boxes, dtype=np.float32) # x1y1x2y2
         scale_w, scale_h = w / iw, h / ih
         img = cv2.resize(img, (w, h))
         image_data = np.array(img) / 255.
